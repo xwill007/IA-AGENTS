@@ -1,14 +1,170 @@
+version: '3.8'
+
 services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: ia-agents-postgres
+    environment:
+      POSTGRES_DB: ia_agents
+      POSTGRES_USER: ia_user
+      POSTGRES_PASSWORD: ia_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ia_user -d ia_agents"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Cache Redis para sesiones y datos temporales
+  redis:
+    image: redis:7-alpine
+    container_name: ia-agents-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Principal
   api:
     build: .
     container_name: ia-agents-api
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql://ia_user:ia_password@postgres:5432/ia_agents
+      - REDIS_URL=redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./models:/app/models
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # n8n para orquestación de workflows AI
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: ia-agents-n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=n8n_password
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - WEBHOOK_URL=http://localhost:5678/
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=ia_user
+      - DB_POSTGRESDB_PASSWORD=ia_password
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Ollama para modelos AI locales
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ia-agents-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # GPU support (opcional, descomenta si tienes GPU compatible)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Jupyter Notebook para análisis y desarrollo
+  jupyter:
+    image: jupyter/datascience-notebook:latest
+    container_name: ia-agents-jupyter
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=jupyter_token_123
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./data:/home/jovyan/work/data
+      - ./models:/home/jovyan/work/models
+    restart: unless-stopped
+
+  # Grafana para monitoreo y dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ia-agents-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=grafana_admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
+
+  # Prometheus para métricas
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ia-agents-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  ollama_data:
+  grafana_data:
+  prometheus_data:
+
+networks:
+  default:
+    name: ia-agents-network
 
 

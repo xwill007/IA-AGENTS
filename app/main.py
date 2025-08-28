@@ -6,6 +6,8 @@ from app.core.database import create_tables
 from app.api.routers.health import router as health_router
 from app.api.routers.trading import router as trading_router
 from app.api.routers.logs import router as logs_router
+from app.api.routers.paper_trading import router as paper_trading_router
+from app.api.routers.learning import router as learning_router
 
 
 app = FastAPI(title="IA-Agents Trading API", version="0.1.0")
@@ -32,6 +34,8 @@ def on_startup() -> None:
 app.include_router(health_router, prefix="/api")
 app.include_router(trading_router, prefix="/api")
 app.include_router(logs_router, prefix="/api")
+app.include_router(paper_trading_router, prefix="/api")
+app.include_router(learning_router, prefix="/api")
 
 
 @app.get("/")
