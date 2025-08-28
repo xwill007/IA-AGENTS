@@ -1,0 +1,154 @@
+{
+  "name": "Quick AI Test - IA-AGENTS",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "quick-test-trigger"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "jsonParameters": true,
+        "parametersJson": "{\n  \"model\": \"llama3.1:8b\",\n  \"prompt\": \"Analyze this sample crypto data: BTC/USDT price is $65,000 with 24h volume of 150M. RSI is 68, MACD shows bullish crossover. What's your trading recommendation?\",\n  \"stream\": false\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Test AI Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300],
+      "id": "test-ai-call"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"success\": true,\n  \"timestamp\": \"{{ new Date().toISOString() }}\",\n  \"model\": \"llama3.1:8b\",\n  \"prompt_length\": {{ $json.prompt.length }},\n  \"response_length\": {{ $json.response.length }},\n  \"ai_analysis\": \"{{ $json.response }}\",\n  \"test_type\": \"quick_trading_analysis\"\n}"
+      },
+      "name": "Format Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [680, 300],
+      "id": "format-result"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Check Response",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "id": "check-response"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"status\": \"SUCCESS\",\n  \"message\": \"✅ AI Model is working perfectly!\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\",\n  \"model_ready\": true,\n  \"next_step\": \"Configure full trading analysis workflow\"\n}"
+      },
+      "name": "Success Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1120, 200],
+      "id": "success-response"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"status\": \"ERROR\",\n  \"message\": \"❌ AI Model test failed\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\",\n  \"model_ready\": false,\n  \"error_details\": \"{{ $json }}\"\n}"
+      },
+      "name": "Error Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1120, 400],
+      "id": "error-response"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test AI Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test AI Model": {
+      "main": [
+        [
+          {
+            "node": "Format Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Result": {
+      "main": [
+        [
+          {
+            "node": "Check Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Response": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ia-agents"
+  },
+  "id": "quick-ai-test",
+  "versionId": "1"
+}

@@ -1,0 +1,295 @@
+{
+  "name": "IA-AGENTS: Trading Analysis with AI",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trading-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger-1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "webhookId": "trading-analysis-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://api:8000/api/trading/klines",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.body.symbol || 'SOLUSDT' }}"
+            },
+            {
+              "name": "interval",
+              "value": "={{ $json.body.interval || '1h' }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        }
+      },
+      "id": "get-market-data",
+      "name": "Get Market Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        620,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://api:8000/api/trading/features",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $('Webhook Trigger').item.json.body.symbol || 'SOLUSDT' }}"
+            }
+          ]
+        }
+      },
+      "id": "get-technical-indicators",
+      "name": "Get Technical Indicators",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        840,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preparar datos para análisis de IA\nconst marketData = $('Get Market Data').item.json;\nconst indicators = $('Get Technical Indicators').item.json;\n\n// Crear prompt estructurado para el modelo de IA\nconst analysisPrompt = `\nAct as an expert cryptocurrency trading analyst. Analyze the following market data:\n\nSYMBOL: ${marketData.symbol}\nCURRENT PRICE: ${marketData.data[marketData.data.length - 1].close}\nPRICE CHANGE 24h: ${((marketData.data[marketData.data.length - 1].close - marketData.data[marketData.data.length - 24].close) / marketData.data[marketData.data.length - 24].close * 100).toFixed(2)}%\n\nTECHNICAL INDICATORS:\n${JSON.stringify(indicators, null, 2)}\n\nRECENT PRICE ACTION (Last 10 candles):\n${marketData.data.slice(-10).map((candle, i) => \n  `${i+1}. Open: ${candle.open}, High: ${candle.high}, Low: ${candle.low}, Close: ${candle.close}, Volume: ${candle.volume}`\n).join('\\n')}\n\nProvide a structured analysis with:\n1. TREND ANALYSIS (Bullish/Bearish/Neutral)\n2. SUPPORT/RESISTANCE LEVELS\n3. TRADING RECOMMENDATION (BUY/SELL/HOLD)\n4. CONFIDENCE LEVEL (0-100%)\n5. RISK ASSESSMENT (Low/Medium/High)\n6. KEY FACTORS influencing the decision\n\nFormat your response as JSON with these exact keys: trend, support_level, resistance_level, recommendation, confidence, risk_level, factors\n`;\n\nreturn {\n  prompt: analysisPrompt,\n  symbol: marketData.symbol,\n  current_price: marketData.data[marketData.data.length - 1].close,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "prepare-ai-prompt",
+      "name": "Prepare AI Analysis Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama3.1:8b"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "ai-analysis",
+      "name": "AI Trading Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar respuesta de IA y estructurar resultado\nconst aiResponse = $json.response;\nconst inputData = $('Prepare AI Analysis Prompt').item.json;\n\nlet aiAnalysis;\ntry {\n  aiAnalysis = JSON.parse(aiResponse);\n} catch (e) {\n  // Si la IA no retorna JSON válido, extraer información clave\n  aiAnalysis = {\n    trend: aiResponse.includes('Bullish') ? 'Bullish' : aiResponse.includes('Bearish') ? 'Bearish' : 'Neutral',\n    recommendation: aiResponse.includes('BUY') ? 'BUY' : aiResponse.includes('SELL') ? 'SELL' : 'HOLD',\n    confidence: 75,\n    risk_level: 'Medium',\n    factors: ['AI analysis completed'],\n    raw_response: aiResponse\n  };\n}\n\n// Estructurar resultado final\nconst result = {\n  analysis_id: `ai_analysis_${Date.now()}`,\n  symbol: inputData.symbol,\n  timestamp: inputData.timestamp,\n  current_price: inputData.current_price,\n  ai_analysis: aiAnalysis,\n  status: 'completed',\n  model_used: 'llama3.1:8b',\n  processing_time: new Date().toISOString()\n};\n\nreturn result;"
+      },
+      "id": "process-ai-response",
+      "name": "Process AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/api/learning/feedback",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "analysis_id",
+              "value": "={{ $json.analysis_id }}"
+            },
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            },
+            {
+              "name": "recommendation",
+              "value": "={{ $json.ai_analysis.recommendation }}"
+            },
+            {
+              "name": "confidence",
+              "value": "={{ $json.ai_analysis.confidence }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "store-analysis",
+      "name": "Store Analysis in Learning System",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Process AI Response').item.json, null, 2) }}"
+      },
+      "id": "webhook-response",
+      "name": "Return Analysis Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Market Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Market Data": {
+      "main": [
+        [
+          {
+            "node": "Get Technical Indicators",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Technical Indicators": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Trading Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Trading Analysis": {
+      "main": [
+        [
+          {
+            "node": "Process AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process AI Response": {
+      "main": [
+        [
+          {
+            "node": "Store Analysis in Learning System",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Analysis in Learning System": {
+      "main": [
+        [
+          {
+            "node": "Return Analysis Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q",
+  "id": "2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ia-agents-n8n"
+  },
+  "tags": [
+    {
+      "id": "trading",
+      "name": "trading"
+    },
+    {
+      "id": "ai",
+      "name": "ai"
+    },
+    {
+      "id": "analysis",
+      "name": "analysis"
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "name": "IA-Agents: Market Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "*/1 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "f8b3a7e1-2d4c-4f6a-9b5e-1a2b3c4d5e6f",
+      "name": "Market Check Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/trading/market-data",
+        "options": {}
+      },
+      "id": "a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+      "name": "Get Market Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"model\": \"llama3.1:8b\",\n    \"prompt\": \"Analyze this market data and provide trading signals. Focus on trend analysis and entry/exit points: \" + JSON.stringify($json),\n    \"stream\": false,\n    \"options\": {\n      \"temperature\": 0.3,\n      \"top_p\": 0.9\n    }\n  }\n}}",
+        "options": {}
+      },
+      "id": "b2c3d4e5-6f7g-8h9i-0j1k-l2m3n4o5p6q7",
+      "name": "AI Market Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "={{ $json.response }}",
+            "operation": "contains",
+            "rightValue": "BUY"
+          }
+        }
+      },
+      "id": "c3d4e5f6-7g8h-9i0j-1k2l-m3n4o5p6q7r8",
+      "name": "Check Buy Signal",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "={{ $json.response }}",
+            "operation": "contains",
+            "rightValue": "SELL"
+          }
+        }
+      },
+      "id": "d4e5f6g7-8h9i-0j1k-2l3m-n4o5p6q7r8s9",
+      "name": "Check Sell Signal",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/trading/signals",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"signal_type\": \"BUY\",\n    \"confidence\": 0.8,\n    \"analysis\": $json.response,\n    \"timestamp\": new Date().toISOString()\n  }\n}}",
+        "options": {}
+      },
+      "id": "e5f6g7h8-9i0j-1k2l-3m4n-o5p6q7r8s9t0",
+      "name": "Send Buy Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/trading/signals",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"signal_type\": \"SELL\",\n    \"confidence\": 0.8,\n    \"analysis\": $json.response,\n    \"timestamp\": new Date().toISOString()\n  }\n}}",
+        "options": {}
+      },
+      "id": "f6g7h8i9-0j1k-2l3m-4n5o-p6q7r8s9t0u1",
+      "name": "Send Sell Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Market Check Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Market Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Market Data": {
+      "main": [
+        [
+          {
+            "node": "AI Market Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Market Analysis": {
+      "main": [
+        [
+          {
+            "node": "Check Buy Signal",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Sell Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Buy Signal": {
+      "main": [
+        [
+          {
+            "node": "Send Buy Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sell Signal": {
+      "main": [
+        [
+          {
+            "node": "Send Sell Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "12345678-9abc-def0-1234-567890abcdef",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "1",
+  "tags": [
+    {
+      "id": "market-analysis",
+      "name": "Market Analysis"
+    }
+  ]
+}

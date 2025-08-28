@@ -1,0 +1,227 @@
+{
+  "name": "IA-AGENTS: Ollama Model Management",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b8c77a88-8647-4073-9a1c-3b5f4c2d1e0f",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        820,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://ollama:11434/api/tags",
+        "options": {}
+      },
+      "id": "a7b66f77-7536-4062-8a1b-2c4e3d2f1g0h",
+      "name": "Check Available Models",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1040,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ JSON.stringify($json.models) }}",
+              "operation": "contains",
+              "value2": "llama3.1"
+            }
+          ]
+        }
+      },
+      "id": "c8d77e88-8647-5184-9b2c-4d5f6e3f2h1i",
+      "name": "Model Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/pull",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "llama3.1:8b"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 3600000
+        }
+      },
+      "id": "d9e88f99-9758-6295-ac3d-5e6f7f4g3i2j",
+      "name": "Download Llama 3.1 8B",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama3.1:8b"
+            },
+            {
+              "name": "prompt",
+              "value": "Hello! I'm ready to help with trading analysis. Please provide market data for analysis."
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        }
+      },
+      "id": "e0f99g00-0869-7306-bd4e-6f7g8g5h4j3k",
+      "name": "Test Model Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/api/logs",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "level",
+              "value": "INFO"
+            },
+            {
+              "name": "message",
+              "value": "Ollama model {{ $('Check Available Models').item.json.models.length > 0 ? 'verified' : 'configured' }} successfully"
+            },
+            {
+              "name": "source",
+              "value": "n8n-ollama-setup"
+            }
+          ]
+        }
+      },
+      "id": "f1g00h11-1970-8417-ce5f-7g8h9h6i5k4l",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1920,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Check Available Models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Available Models": {
+      "main": [
+        [
+          {
+            "node": "Model Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model Exists?": {
+      "main": [
+        [
+          {
+            "node": "Test Model Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download Llama 3.1 8B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Llama 3.1 8B": {
+      "main": [
+        [
+          {
+            "node": "Test Model Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Model Response": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
+  "id": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ia-agents-n8n"
+  },
+  "tags": [
+    {
+      "id": "ollama",
+      "name": "ollama"
+    },
+    {
+      "id": "ai",
+      "name": "ai"  
+    },
+    {
+      "id": "setup",
+      "name": "setup"
+    }
+  ]
+}
