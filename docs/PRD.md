@@ -5,7 +5,7 @@
 - **Proyecto**: IA-AGENTS Trading Bot
 - **Versión**: 1.0
 - **Fecha**: Agosto 2025
-- **Owner**: xwill007
+- **Owner**: Wilber Vargas
 
 ---
 
