@@ -2,8 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.database import create_tables
 from app.api.routers.health import router as health_router
 from app.api.routers.trading import router as trading_router
+from app.api.routers.logs import router as logs_router
 
 
 app = FastAPI(title="IA-Agents Trading API", version="0.1.0")
@@ -22,10 +24,14 @@ def on_startup() -> None:
     # Crear carpetas locales si no existen
     for path in [settings.data_dir, settings.models_dir]:
         path.mkdir(parents=True, exist_ok=True)
+    
+    # Crear tablas de base de datos
+    create_tables()
 
 
 app.include_router(health_router, prefix="/api")
 app.include_router(trading_router, prefix="/api")
+app.include_router(logs_router, prefix="/api")
 
 
 @app.get("/")
