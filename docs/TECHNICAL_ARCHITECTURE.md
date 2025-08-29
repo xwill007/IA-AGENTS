@@ -18,6 +18,50 @@
 - **✅ Containerización**: Todo deployado via Docker Compose
 - **✅ Observabilidad**: Logging, métricas y monitoreo completo
 - **✅ Fault Tolerance**: Health checks y restart automático
+- **✅ Automatización**: Scripts de gestión y mantenimiento automatizados
+
+### 1.2 ✅ Gestión Automatizada de Workflows
+
+#### 1.2.1 Script de Actualización (update-n8n-workflow.ps1)
+
+**Tecnología:** PowerShell v5.1+  
+**Integración:** n8n REST API  
+**Autenticación:** Basic Auth + API Key
+
+**Arquitectura del Script:**
+```
+1. Validación de Entrada
+   ├─ Verificación de archivo workflow
+   └─ Validación estructura JSON
+
+2. Gestión de Conexión
+   ├─ Verificación servicio n8n
+   ├─ Validación credenciales
+   └─ Configuración headers API
+
+3. Operaciones Workflow
+   ├─ Búsqueda workflows existentes
+   ├─ Actualización/Creación
+   └─ Activación automática
+
+4. Sistema de Reintentos
+   ├─ Máximo 3 intentos
+   ├─ Espera entre intentos
+   └─ Manejo de errores
+
+5. Logging y Depuración
+   ├─ Mensajes DEBUG detallados
+   ├─ Información de estado
+   └─ Detalles de errores
+```
+
+**Características Técnicas:**
+- REST API Integration
+- JSON manipulation
+- Error handling robusto
+- Reintentos automáticos
+- Logging detallado
+- Manejo de credenciales seguro
 
 ### 1.2 🛠️ Stack Tecnológico Operativo
 

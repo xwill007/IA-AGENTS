@@ -18,6 +18,40 @@
 ### 1. Variables de Entorno (.env)
 
 **Archivo:** `b:\GITHUB\IA-AGENTS\.env`  
+
+### 2. Gestión de Workflows n8n
+
+#### 2.1 Script de Actualización de Workflows
+
+El sistema incluye un script PowerShell para gestionar workflows de n8n de forma automatizada.
+
+**Ubicación:** `scripts/update-n8n-workflow.ps1`
+
+**Uso:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\update-n8n-workflow.ps1 -WorkflowFile ".\n8n-workflows\00-system-health-check.json"
+```
+
+**Requisitos previos:**
+- n8n debe estar en ejecución (puerto 5678)
+- Archivo `.env` configurado con las credenciales de n8n:
+  - `N8N_BASIC_AUTH_USER`
+  - `N8N_BASIC_AUTH_PASSWORD`
+  - `N8N_API_KEY`
+- Archivo JSON del workflow válido
+
+**Funcionalidades:**
+- Actualización automática de workflows existentes
+- Creación de nuevos workflows
+- Activación automática de workflows
+- Sistema de reintentos y manejo de errores
+- Información detallada del proceso
+
+**Ejemplo de uso para workflows del sistema:**
+1. Health Check System: `00-system-health-check.json`
+2. Market Monitor: `01-market-monitor.json`
+3. Risk Management: `02-risk-management.json`
+4. Strategy Orchestrator: `03-strategy-orchestrator.json`
 **Estado:** ✅ Configurado y operativo  
 **⚠️ SEGURIDAD:** Archivo .env está en .gitignore - NO se sube al repositorio
 
