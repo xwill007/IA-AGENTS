@@ -29,6 +29,10 @@ El sistema incluye un script PowerShell para gestionar workflows de n8n de forma
 
 **Uso:**
 ```powershell
+# Opción 1: Directamente desde PowerShell (requiere cambiar la política de ejecución)
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process; .\scripts\update-n8n-workflow.ps1 -WorkflowFile ".\n8n-workflows\00-system-health-check.json"
+
+# Opción 2: Usando el parámetro -File (no requiere cambiar la política de ejecución)
 powershell -ExecutionPolicy Bypass -File .\scripts\update-n8n-workflow.ps1 -WorkflowFile ".\n8n-workflows\00-system-health-check.json"
 ```
 
