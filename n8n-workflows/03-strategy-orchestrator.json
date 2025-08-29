@@ -1,0 +1,226 @@
+{
+  "name": "IA-Agents: Trading Strategy Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "strategy-trigger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "o1p2q3r4-5s6t-7u8v-9w0x-y1z2a3b4c5d6",
+      "name": "Strategy Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "strategy-orchestrator"
+    },
+    {
+      "parameters": {
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"model\": \"llama3.1:8b\",\n    \"prompt\": \"You are the master trading strategist AI. Analyze all incoming signals and market data to make final trading decisions. Consider: 1) Technical signals, 2) Fundamental analysis, 3) Risk assessment, 4) Market sentiment. Input data: \" + JSON.stringify($json) + \". Provide clear BUY/SELL/HOLD decision with reasoning.\",\n    \"stream\": false,\n    \"options\": {\n      \"temperature\": 0.4,\n      \"top_p\": 0.9\n    }\n  }\n}}",
+        "options": {}
+      },
+      "id": "p2q3r4s5-6t7u-8v9w-0x1y-z2a3b4c5d6e7",
+      "name": "Master Strategy AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "={{ $json.response }}",
+            "operation": "contains",
+            "rightValue": "BUY"
+          }
+        }
+      },
+      "id": "q3r4s5t6-7u8v-9w0x-1y2z-a3b4c5d6e7f8",
+      "name": "Execute Buy Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "={{ $json.response }}",
+            "operation": "contains",
+            "rightValue": "SELL"
+          }
+        }
+      },
+      "id": "r4s5t6u7-8v9w-0x1y-2z3a-b4c5d6e7f8g9",
+      "name": "Execute Sell Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/paper-trading/execute-order",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"BUY\",\n    \"type\": \"MARKET\",\n    \"quantity\": 0.001,\n    \"strategy_reason\": $json.response\n  }\n}}",
+        "options": {}
+      },
+      "id": "s5t6u7v8-9w0x-1y2z-3a4b-c5d6e7f8g9h0",
+      "name": "Execute Buy Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/paper-trading/execute-order",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"MARKET\",\n    \"quantity\": 0.001,\n    \"strategy_reason\": $json.response\n  }\n}}",
+        "options": {}
+      },
+      "id": "t6u7v8w9-0x1y-2z3a-4b5c-d6e7f8g9h0i1",
+      "name": "Execute Sell Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/learning/record-decision",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"decision\": $json.response,\n    \"market_data\": $('Strategy Webhook').all(),\n    \"timestamp\": new Date().toISOString()\n  }\n}}",
+        "options": {}
+      },
+      "id": "u7v8w9x0-1y2z-3a4b-5c6d-e7f8g9h0i1j2",
+      "name": "Record Decision for Learning",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ \n  {\n    \"status\": \"decision_executed\",\n    \"decision\": $json.response,\n    \"timestamp\": new Date().toISOString()\n  }\n}}"
+      },
+      "id": "v8w9x0y1-2z3a-4b5c-6d7e-f8g9h0i1j2k3",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Strategy Webhook": {
+      "main": [
+        [
+          {
+            "node": "Master Strategy AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master Strategy AI": {
+      "main": [
+        [
+          {
+            "node": "Execute Buy Decision",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Execute Sell Decision",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Record Decision for Learning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Buy Decision": {
+      "main": [
+        [
+          {
+            "node": "Execute Buy Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Sell Decision": {
+      "main": [
+        [
+          {
+            "node": "Execute Sell Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Decision for Learning": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "11223344-5566-7788-99aa-bbccddeeff00",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "3",
+  "tags": [
+    {
+      "id": "strategy-orchestration",
+      "name": "Strategy Orchestration"
+    }
+  ]
+}

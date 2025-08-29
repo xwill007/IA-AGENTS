@@ -1,0 +1,207 @@
+{
+  "name": "IA-Agents: Risk Management",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/trading/portfolio",
+        "options": {}
+      },
+      "id": "r1s2t3u4-5v6w-7x8y-9z0a-b1c2d3e4f5g6",
+      "name": "Get Portfolio Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"model\": \"llama3.1:8b\",\n    \"prompt\": \"As a risk management AI, analyze this portfolio and identify risks. Consider position sizes, concentration, volatility, and market conditions. Recommend risk mitigation actions: \" + JSON.stringify($json),\n    \"stream\": false,\n    \"options\": {\n      \"temperature\": 0.2,\n      \"top_p\": 0.8\n    }\n  }\n}}",
+        "options": {}
+      },
+      "id": "s2t3u4v5-6w7x-8y9z-0a1b-c2d3e4f5g6h7",
+      "name": "AI Risk Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "={{ $json.response }}",
+            "operation": "contains",
+            "rightValue": "HIGH RISK"
+          }
+        }
+      },
+      "id": "t3u4v5w6-7x8y-9z0a-1b2c-d3e4f5g6h7i8",
+      "name": "Check High Risk",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "={{ $json.response }}",
+            "operation": "contains",
+            "rightValue": "STOP LOSS"
+          }
+        }
+      },
+      "id": "u4v5w6x7-8y9z-0a1b-2c3d-e4f5g6h7i8j9",
+      "name": "Check Stop Loss",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/trading/risk-alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"alert_type\": \"HIGH_RISK\",\n    \"message\": $json.response,\n    \"urgency\": \"high\",\n    \"timestamp\": new Date().toISOString()\n  }\n}}",
+        "options": {}
+      },
+      "id": "v5w6x7y8-9z0a-1b2c-3d4e-f5g6h7i8j9k0",
+      "name": "Send Risk Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/trading/stop-loss",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    \"action\": \"EXECUTE_STOP_LOSS\",\n    \"analysis\": $json.response,\n    \"timestamp\": new Date().toISOString()\n  }\n}}",
+        "options": {}
+      },
+      "id": "w6x7y8z9-0a1b-2c3d-4e5f-g6h7i8j9k0l1",
+      "name": "Execute Stop Loss",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "x7y8z9a0-1b2c-3d4e-5f6g-h7i8j9k0l1m2",
+      "name": "Risk Check Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        60,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Risk Check Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Portfolio Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Portfolio Status": {
+      "main": [
+        [
+          {
+            "node": "AI Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Risk Analysis": {
+      "main": [
+        [
+          {
+            "node": "Check High Risk",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Stop Loss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check High Risk": {
+      "main": [
+        [
+          {
+            "node": "Send Risk Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Stop Loss": {
+      "main": [
+        [
+          {
+            "node": "Execute Stop Loss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "87654321-cba9-8fed-4321-098765fedcba",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "2",
+  "tags": [
+    {
+      "id": "risk-management",
+      "name": "Risk Management"
+    }
+  ]
+}
