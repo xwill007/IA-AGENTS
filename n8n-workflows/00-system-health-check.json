@@ -51,8 +51,10 @@
         "url": "http://ollama:11434/api/generate",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"model\": \"llama3.1:8b\",\n  \"prompt\": \"Hello! Please respond with 'IA-Agents AI system is working correctly.'\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.1\n  }\n}",
-        "options": {}
+        "jsonBody": "{\n  \"model\": \"llama3.1:8b\",\n  \"prompt\": \"System check\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.1\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "t4e5s6t7-8a9i-0t1e-2s3t-a4i5s6y7s8t9",
       "name": "Test AI Response",
@@ -65,8 +67,18 @@
     },
     {
       "parameters": {
+        "keepOnlySet": true,
         "respondWith": "json",
-        "responseBody": "={\n  \"status\": \"healthy\",\n  \"timestamp\": new Date().toISOString(),\n  \"services\": {\n    \"api\": {{ $('Check API Health').first().json }},\n    \"ollama\": {{ $('Check Ollama Health').first().json }},\n    \"ai_test\": {{ $('Test AI Response').first().json }}\n  },\n  \"message\": \"IA-Agents system is fully operational\"\n}"
+        "responseBody": {
+          "status": "healthy",
+          "timestamp": "={{ $now }}",
+          "services": {
+            "api": "={{ $('Check API Health').item.json }}",
+            "ollama": "={{ $('Check Ollama Health').item.json }}",
+            "ai_test": "={{ $('Test AI Response').item.json }}"
+          },
+          "message": "IA-Agents system is fully operational"
+        }
       },
       "id": "r5e6s7p8-9o0n-1s2e-3h4e-a5l6t7h8c9h0",
       "name": "Health Response",
