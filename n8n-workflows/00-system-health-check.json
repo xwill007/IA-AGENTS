@@ -6,8 +6,18 @@
         "httpMethod": "GET",
         "path": "health-check",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
       },
+      "output": "={ $input.all() }",
       "id": "h1e2a3l4-5t6h-7c8h-9e0c-k1a2b3c4d5e6",
       "name": "Health Check Trigger",
       "type": "n8n-nodes-base.webhook",
@@ -20,8 +30,17 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8000/",
-        "options": {}
+        "url": "http://localhost:8000/health",
+        "authentication": "none",
+        "options": {
+          "timeout": 5000,
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
       },
       "id": "a2p3i4c5-6h7e-8a9l-0t1h-c2h3e4c5k6a7",
       "name": "Check API Health",
@@ -34,8 +53,17 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:11434/api/tags",
-        "options": {}
+        "url": "http://localhost:11434/api/health",
+        "authentication": "none",
+        "options": {
+          "timeout": 5000,
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
       },
       "id": "o3l4l5a6-7m8a-9h0e-1a2l-t3h4c5h6e7c8",
       "name": "Check Ollama Health",
@@ -69,14 +97,26 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": {
-          "status": "healthy",
-          "timestamp": "={{ $now }}",
+          "status": "={{ ['Check API Health', 'Check Ollama Health', 'Test AI Response'].every(service => $nodes[service]?.error === undefined) ? 'healthy' : 'degraded' }}",
+          "timestamp": "={{ DateTime.now().toISO() }}",
           "services": {
-            "api": "={{ $('Check API Health').item.json }}",
-            "ollama": "={{ $('Check Ollama Health').item.json }}",
-            "ai_test": "={{ $('Test AI Response').item.json }}"
+            "api": {
+              "status": "={{ $('Check API Health').error === undefined ? ($('Check API Health').item?.json?.statusCode === 200 ? 'healthy' : 'degraded') : 'offline' }}",
+              "statusCode": "={{ $('Check API Health').error === undefined ? $('Check API Health').item?.json?.statusCode : 'error' }}",
+              "message": "={{ $('Check API Health').error === undefined ? 'Service operational' : $('Check API Health').error.message }}"
+            },
+            "ollama": {
+              "status": "={{ $('Check Ollama Health').error === undefined ? ($('Check Ollama Health').item?.json?.statusCode === 200 ? 'healthy' : 'degraded') : 'offline' }}",
+              "statusCode": "={{ $('Check Ollama Health').error === undefined ? $('Check Ollama Health').item?.json?.statusCode : 'error' }}",
+              "message": "={{ $('Check Ollama Health').error === undefined ? 'Service operational' : $('Check Ollama Health').error.message }}"
+            },
+            "ai": {
+              "status": "={{ $('Test AI Response').error === undefined ? ($('Test AI Response').item?.json?.statusCode === 200 ? 'healthy' : 'degraded') : 'offline' }}",
+              "statusCode": "={{ $('Test AI Response').error === undefined ? $('Test AI Response').item?.json?.statusCode : 'error' }}",
+              "message": "={{ $('Test AI Response').error === undefined ? 'Service operational' : $('Test AI Response').error.message }}"
+            }
           },
-          "message": "IA-Agents system is fully operational"
+          "message": "={{ ['Check API Health', 'Check Ollama Health', 'Test AI Response'].every(service => $nodes[service]?.error === undefined) ? 'IA-Agents system is fully operational' : 'Some services are experiencing issues' }}"
         }
       },
       "id": "r5e6s7p8-9o0n-1s2e-3h4e-a5l6t7h8c9h0",
