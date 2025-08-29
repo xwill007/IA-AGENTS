@@ -3,46 +3,123 @@ param(
     [string]$WorkflowFile
 )
 
+# Verificar que el archivo existe
+if (-not (Test-Path $WorkflowFile)) {
+    Write-Error "El archivo de workflow no existe: $WorkflowFile"
+    exit 1
+}
+
 # Lee el contenido del archivo JSON del workflow
-$workflowContent = Get-Content -Path $WorkflowFile -Raw
+try {
+    $workflowContent = Get-Content -Path $WorkflowFile -Raw
+    $workflow = $workflowContent | ConvertFrom-Json
+    
+    # Validar que el JSON tiene la estructura esperada
+    if (-not $workflow.name -or -not $workflow.nodes -or -not $workflow.connections) {
+        throw "El archivo JSON no tiene la estructura esperada de un workflow de n8n"
+    }
+    
+    Write-Host "Workflow leído correctamente: $($workflow.name)"
+} catch {
+    Write-Error "Error al leer o validar el archivo JSON: $_"
+    exit 1
+}
 
 # URL de la API de n8n
 $n8nUrl = "http://localhost:5678/api/v1/workflows"
+
+Write-Host "[DEBUG] Iniciando script de actualización de workflow..."
+Write-Host "[DEBUG] URL de la API: $n8nUrl"
+
+# Verificar que n8n está en ejecución
+try {
+    Write-Host "[DEBUG] Verificando conexión con n8n..."
+    $testConnection = Invoke-WebRequest -Uri "http://localhost:5678/healthz" -Method GET -TimeoutSec 5
+    Write-Host "[DEBUG] Respuesta del servidor n8n: $($testConnection.StatusCode) $($testConnection.StatusDescription)"
+    
+    if ($testConnection.StatusCode -ne 200) {
+        throw "n8n no está respondiendo correctamente (Status: $($testConnection.StatusCode))"
+    }
+    Write-Host "[DEBUG] Conexión con n8n establecida correctamente"
+} catch {
+    Write-Error "[ERROR] No se puede conectar con n8n. Error: $_"
+    Write-Host "[DEBUG] Detalles del error: $($_.Exception.Message)"
+    exit 1
+}
 
 # Función para leer valores del archivo .env
 function Get-EnvValue {
     param (
         [string]$key
     )
-    $envContent = Get-Content "$PSScriptRoot\..\\.env"
-    $value = $envContent | Where-Object { $_ -match "^$key=" } | ForEach-Object { $_.Split('=')[1] }
-    return $value
+    $envPath = "$PSScriptRoot\..\\.env"
+    if (-not (Test-Path $envPath)) {
+        Write-Error "No se encuentra el archivo .env en $envPath"
+        exit 1
+    }
+    
+    try {
+        $envContent = Get-Content $envPath
+        $value = $envContent | Where-Object { $_ -match "^$key=" } | ForEach-Object { $_.Split('=')[1] }
+        if ([string]::IsNullOrEmpty($value)) {
+            Write-Error "No se encontró el valor para la clave $key en el archivo .env"
+            exit 1
+        }
+        return $value.Trim('"''') # Remove quotes if present
+    } catch {
+        Write-Error "Error al leer el archivo .env: $_"
+        exit 1
+    }
 }
 
-# Obtener credenciales de n8n del archivo .env
+# Obtener credenciales del archivo .env
+Write-Host "[DEBUG] Obteniendo credenciales del archivo .env..."
+$apiKey = Get-EnvValue "N8N_API_KEY"
 $username = Get-EnvValue "N8N_BASIC_AUTH_USER"
 $password = Get-EnvValue "N8N_BASIC_AUTH_PASSWORD"
 
-# Obtener API key del archivo .env
-$apiKey = Get-EnvValue "N8N_API_KEY"
+Write-Host "[DEBUG] Usuario configurado: $username"
+Write-Host "[DEBUG] API Key encontrada: $(if ($apiKey) { 'Sí' } else { 'No' })"
 
-# Configurar los headers con el API key
+# Crear el header de autorización básica
+$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $username, $password)))
+
+# Configurar los headers
 $headers = @{
+    "Authorization" = "Basic $base64AuthInfo"
     "X-N8N-Skip-WebhookAppend" = "true"
     "X-N8N-API-KEY" = $apiKey
+    "Content-Type" = "application/json"
 }
 
-# Obtén la lista de workflows existentes
-$existingWorkflows = Invoke-RestMethod -Uri $n8nUrl -Method GET -Headers $headers
+Write-Host "[DEBUG] Headers configurados:"
+Write-Host "[DEBUG] - Authorization: Basic $(if ($base64AuthInfo) { 'configurado' } else { 'no configurado' })"
+Write-Host "[DEBUG] - X-N8N-API-KEY: $(if ($apiKey) { 'configurado' } else { 'no configurado' })"
 
-# Convierte el contenido del workflow a un objeto PowerShell
-$workflow = $workflowContent | ConvertFrom-Json
+# Obtener la lista de workflows existentes
+Write-Host "[DEBUG] Obteniendo lista de workflows existentes..."
+try {
+    $existingWorkflows = Invoke-RestMethod -Uri $n8nUrl -Method GET -Headers $headers
+    Write-Host "[DEBUG] Workflows encontrados: $($existingWorkflows.data.Count)"
+    
+    # Busca si ya existe un workflow con el mismo nombre
+    $existingWorkflow = $existingWorkflows.data | Where-Object { $_.name -eq $workflow.name }
+    if ($existingWorkflow) {
+        Write-Host "[DEBUG] Workflow encontrado con ID: $($existingWorkflow.id)"
+    } else {
+        Write-Host "[DEBUG] No se encontró un workflow existente con ese nombre"
+    }
+} catch {
+    Write-Error "[ERROR] Error al obtener workflows: $_"
+    Write-Host "[DEBUG] Detalles del error: $($_.Exception.Message)"
+    Write-Host "[DEBUG] Respuesta del servidor: $($_.ErrorDetails.Message)"
+    exit 1
+}
 
-# Busca si ya existe un workflow con el mismo nombre
-$existingWorkflows = Invoke-RestMethod -Uri $n8nUrl -Method GET -Headers $headers
-$existingWorkflow = $existingWorkflows.data | Where-Object { $_.name -eq $workflow.name }
+$workflowId = $null
 
 if ($existingWorkflow) {
+    $workflowId = $existingWorkflow.id
     Write-Host "Actualizando workflow existente: $($workflow.name)"
     $updateUrl = "$n8nUrl/$($existingWorkflow.id)"
     
@@ -54,26 +131,34 @@ if ($existingWorkflow) {
         settings = $workflow.settings
     }
     
-    # Actualiza el workflow
-    $response = Invoke-RestMethod -Uri $updateUrl -Method PUT -Body ($requestBody | ConvertTo-Json -Depth 100) -ContentType "application/json" -Headers $headers
-    
-    # Espera un momento para que los cambios se apliquen
-    Start-Sleep -Seconds 2
-    
-    # Verifica el estado del workflow y actívalo si es necesario
-    $workflowStatus = Invoke-RestMethod -Uri $updateUrl -Method GET -Headers $headers
-    Write-Host "Estado actual del workflow: $(if ($workflowStatus.data.active) { 'Activo' } else { 'Inactivo' })"
-    if (-not $workflowStatus.data.active) {
-        Write-Host "Activando workflow..."
-        $activateUrl = "$updateUrl/activate"
-        try {
-            $activateResponse = Invoke-RestMethod -Uri $activateUrl -Method POST -Headers $headers
-            Write-Host "Workflow activado exitosamente"
-        } catch {
-            Write-Host "Error al activar el workflow: $_"
+    try {
+        # Actualiza el workflow
+        $response = Invoke-RestMethod -Uri $updateUrl -Method PUT -Body ($requestBody | ConvertTo-Json -Depth 100) -ContentType "application/json" -Headers $headers
+        Write-Host "Workflow actualizado exitosamente"
+        
+        # Espera un momento para que los cambios se apliquen
+        Start-Sleep -Seconds 2
+        
+        # Verifica el estado del workflow
+        $workflowStatus = Invoke-RestMethod -Uri $updateUrl -Method GET -Headers $headers
+        Write-Host "Estado actual del workflow: $(if ($workflowStatus.data.active) { 'Activo' } else { 'Inactivo' })"
+        
+        if (-not $workflowStatus.data.active) {
+            Write-Host "Activando workflow..."
+            $activateUrl = "$updateUrl/activate"
+            try {
+                $activateResponse = Invoke-RestMethod -Uri $activateUrl -Method POST -Headers $headers
+                Write-Host "Workflow activado exitosamente"
+            } catch {
+                Write-Host "Error al activar el workflow: $_"
+            }
+        } else {
+            Write-Host "El workflow ya está activo"
         }
-    } else {
-        Write-Host "El workflow ya está activo"
+    } catch {
+        Write-Error "Error al actualizar el workflow: $_"
+        Write-Host "Respuesta del servidor: $($_.ErrorDetails.Message)"
+        exit 1
     }
 } else {
     Write-Host "Creando nuevo workflow: $($workflow.name)"
@@ -83,30 +168,63 @@ if ($existingWorkflow) {
         nodes = $workflow.nodes
         connections = $workflow.connections
         settings = $workflow.settings
-    }
-    
-    # Crea un nuevo workflow
-    $response = Invoke-RestMethod -Uri $n8nUrl -Method POST -Body ($requestBody | ConvertTo-Json -Depth 100) -ContentType "application/json" -Headers $headers
-    
-    # Activar el nuevo workflow
-    Write-Host "Activando nuevo workflow..."
-    $activateUrl = "$n8nUrl/$($response.data.id)/activate"
+        active = $true
+        tags = $workflow.tags
+    } | ConvertTo-Json -Depth 100
+
     try {
-        $activateResponse = Invoke-RestMethod -Uri $activateUrl -Method POST -Headers $headers
-        Write-Host "Workflow activado exitosamente"
+        # Crea un nuevo workflow
+        $response = Invoke-RestMethod -Uri $n8nUrl -Method POST -Body $requestBody -ContentType "application/json" -Headers $headers
+        Write-Host "Workflow creado exitosamente con ID: $($response.data.id)"
+        $workflowId = $response.data.id
+        
+        # Activar el nuevo workflow
+        Write-Host "Activando nuevo workflow..."
+        $activateUrl = "$n8nUrl/$workflowId/activate"
+        try {
+            $activateResponse = Invoke-RestMethod -Uri $activateUrl -Method POST -Headers $headers
+            Write-Host "Workflow activado exitosamente"
+        } catch {
+            Write-Host "Error al activar el workflow: $_"
+        }
     } catch {
-        Write-Host "Error al activar el workflow: $_"
+        Write-Error "Error al crear el workflow: $_"
+        Write-Host "Respuesta del servidor: $($_.ErrorDetails.Message)"
+        exit 1
     }
 }
 
-# Obtener la información final del workflow
-$finalWorkflow = if ($existingWorkflow) {
-    $workflowStatus.data
-} else {
-    $response.data
-}
+# Mostrar información final del workflow
+Write-Host "`n[DEBUG] Obteniendo información final del workflow..."
+Start-Sleep -Seconds 2
 
-Write-Host "Finaliza actualizacion de: $($workflow.name)"
-Write-Host "ID: $($finalWorkflow.id)"
-Write-Host "Nombre: $($finalWorkflow.name)"
-Write-Host "Estado: $(if ($finalWorkflow.active) { 'Activo' } else { 'Inactivo' })"
+try {
+    Write-Host "[DEBUG] Consultando estado actual del workflow..."
+    $finalStatus = Invoke-RestMethod -Uri "$n8nUrl/$workflowId" -Headers $headers -Method GET
+    
+    if ($finalStatus.data) {
+        $workflowData = $finalStatus.data
+        Write-Host "`nInformación del workflow:"
+        Write-Host "----------------------"
+        Write-Host "Nombre: $($workflowData.name)"
+        Write-Host "ID: $($workflowData.id)"
+        Write-Host "Estado: $(if ($workflowData.active) { 'Activo' } else { 'Inactivo' })"
+        Write-Host "Última actualización: $($workflowData.updatedAt)"
+        
+        $tagNames = if ($workflowData.tags -and $workflowData.tags.Count -gt 0) {
+            ($workflowData.tags | ForEach-Object { $_.name }) -join ', '
+        } else {
+            "Ninguno"
+        }
+        Write-Host "Tags: $tagNames"
+        Write-Host "----------------------"
+        Write-Host "[DEBUG] Información mostrada correctamente"
+    } else {
+        Write-Error "No se pudo obtener la información detallada del workflow"
+    }
+} catch {
+    Write-Error "Error al obtener información final del workflow: $_"
+    if ($_.ErrorDetails) {
+        Write-Host "[DEBUG] Respuesta del servidor: $($_.ErrorDetails.Message)"
+    }
+}

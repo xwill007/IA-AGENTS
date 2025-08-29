@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "url": "http://api:8000/",
+        "url": "http://localhost:8000/",
         "options": {}
       },
       "id": "a2p3i4c5-6h7e-8a9l-0t1h-c2h3e4c5k6a7",
@@ -34,7 +34,7 @@
     },
     {
       "parameters": {
-        "url": "http://ollama:11434/api/tags",
+        "url": "http://localhost:11434/api/tags",
         "options": {}
       },
       "id": "o3l4l5a6-7m8a-9h0e-1a2l-t3h4c5h6e7c8",
@@ -48,7 +48,7 @@
     },
     {
       "parameters": {
-        "url": "http://ollama:11434/api/generate",
+        "url": "http://localhost:11434/api/generate",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "{\n  \"model\": \"llama3.1:8b\",\n  \"prompt\": \"System check\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.1\n  }\n}",
@@ -67,7 +67,6 @@
     },
     {
       "parameters": {
-        "keepOnlySet": true,
         "respondWith": "json",
         "responseBody": {
           "status": "healthy",
